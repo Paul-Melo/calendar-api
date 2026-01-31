@@ -1,0 +1,19 @@
+# Ignore virtual env and local secrets
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.pyc
+
+# Secrets and env
+.env
+client_secret.json
+
+# Distribution / build
+dist/
+*.zip
+*.bundle
+
+# Editor
+.vscode/
+.idea/
