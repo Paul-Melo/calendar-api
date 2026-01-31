@@ -9,6 +9,10 @@ __pycache__/
 .env
 client_secret.json
 
+# Database files (do not commit DB with tokens/PII)
+database/
+*.db
+
 # Distribution / build
 dist/
 *.zip
