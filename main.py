@@ -45,6 +45,20 @@ else:
 # Configuração de CORS restrita
 cors_origins = os.environ.get('CORS_ORIGINS', 'http://localhost:5173').split(',')
 CORS(app, origins=cors_origins, supports_credentials=True)
+# Debug: log CORS origins configured (temporário)
+print("CORS_ORIGINS =", cors_origins)
+
+
+@app.before_request
+def _log_request_origin():
+    """Log the Origin header for calendar routes to help debug CORS issues (temporário)."""
+    try:
+        origin = request.headers.get('Origin')
+        # Only log calendar-related requests to reduce noise
+        if request.path.startswith('/calendar'):
+            print(f"Request path={request.path} Origin={origin}")
+    except Exception:
+        pass
 
 # Inicializar banco de dados
 db.init_app(app)
