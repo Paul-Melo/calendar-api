@@ -1,13 +1,23 @@
 import os
+import sys
+import traceback
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from flask import Flask, request, jsonify, session, send_from_directory
 from flask_cors import CORS
 from flask_session import Session as FlaskSession
 import redis as redis_lib
-from src.models.user import db
-from src.routes.user import user_bp
-from src.routes.calendar import calendar_bp
+
+# Capturar e logar qualquer erro de importação inicial para facilitar debug no deploy
+try:
+    from src.models.user import db
+    from src.routes.user import user_bp
+    from src.routes.calendar import calendar_bp
+except Exception:
+    print("ERROR: falha ao importar módulos da aplicação durante startup.", file=sys.stderr)
+    traceback.print_exc()
+    # Re-raise para que o processo falhe visivelmente após log
+    raise
 
 # Permitir OAuth inseguro em ambiente de desenvolvimento (apenas para testes locais)
 # Define antes de importar/usar qualquer código que invoque a biblioteca oauthlib
@@ -45,6 +55,27 @@ else:
 # Configuração de CORS restrita
 cors_origins = os.environ.get('CORS_ORIGINS', 'http://localhost:5173').split(',')
 CORS(app, origins=cors_origins, supports_credentials=True)
+# Debug: log CORS origins configured (temporário)
+print("CORS_ORIGINS =", cors_origins)
+
+# Em produção, garantir que cookies de sessão sejam enviados em requests cross-site
+# (SameSite=None exige Secure=True). Valores podem ser sobrescritos por variáveis de
+# ambiente `SESSION_COOKIE_SAMESITE` e `SESSION_COOKIE_SECURE` quando necessário.
+if os.environ.get('FLASK_ENV') == 'production':
+    app.config['SESSION_COOKIE_SAMESITE'] = os.environ.get('SESSION_COOKIE_SAMESITE', 'None')
+    app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', '1') == '1'
+
+
+@app.before_request
+def _log_request_origin():
+    """Log the Origin header for calendar routes to help debug CORS issues (temporário)."""
+    try:
+        origin = request.headers.get('Origin')
+        # Only log calendar-related requests to reduce noise
+        if request.path.startswith('/calendar'):
+            print(f"Request path={request.path} Origin={origin}")
+    except Exception:
+        pass
 
 # Inicializar banco de dados
 db.init_app(app)

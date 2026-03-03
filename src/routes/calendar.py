@@ -146,6 +146,11 @@ def oauth2callback():
             db.session.commit()
             # Armazenar apenas o identificador curto na sessão
             session['oauth_credential_id'] = cred.id
+            # Debug: logar id salvo na sessão para verificar criação do cookie
+            try:
+                print(f"OAuth callback: stored oauth_credential_id={cred.id} in session; session_keys={list(session.keys())}")
+            except Exception:
+                pass
         except Exception as e:
             db.session.rollback()
             return jsonify({"error": f"Falha ao persistir credenciais: {e}"}), 500
@@ -153,6 +158,21 @@ def oauth2callback():
         return jsonify({"message": "Autenticação bem-sucedida!"})
     except Exception as e:
         return jsonify({"error": f"Erro no callback OAuth: {str(e)}"}), 500
+
+
+@calendar_bp.route('/debug_session', methods=['GET'])
+def debug_session():
+    """Endpoint temporário para inspecionar o conteúdo da sessão no contexto do cliente.
+       Útil para confirmar se o cookie de sessão foi criado e enviado pelo navegador.
+    """
+    try:
+        # Converter itens da sessão para tipos JSON-serializáveis
+        sess = {k: (v if isinstance(v, (str, int, float, bool, type(None))) else str(v)) for k, v in session.items()}
+        print(f"/debug_session called; session_keys={list(session.keys())}")
+        return jsonify({"session": sess}), 200
+    except Exception as e:
+        print(f"debug_session error: {e}")
+        return jsonify({"error": "failed to read session"}), 500
 
 @calendar_bp.route("/available_slots", methods=["POST"])
 def get_available_slots():
