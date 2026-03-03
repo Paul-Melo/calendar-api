@@ -49,6 +49,14 @@ CORS(app, origins=cors_origins, supports_credentials=True)
 print("CORS_ORIGINS =", cors_origins)
 
 
+# Em produção, garantir que cookies de sessão sejam enviados em requests cross-site
+# (SameSite=None exige Secure=True). Valores podem ser sobrescritos por variáveis de
+# ambiente `SESSION_COOKIE_SAMESITE` e `SESSION_COOKIE_SECURE` quando necessário.
+if os.environ.get('FLASK_ENV') == 'production':
+    app.config['SESSION_COOKIE_SAMESITE'] = os.environ.get('SESSION_COOKIE_SAMESITE', 'None')
+    app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', '1') == '1'
+
+    
 @app.before_request
 def _log_request_origin():
     """Log the Origin header for calendar routes to help debug CORS issues (temporário)."""
