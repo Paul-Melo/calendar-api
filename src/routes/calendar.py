@@ -158,7 +158,7 @@ def oauth2callback():
         return jsonify({"message": "Autenticação bem-sucedida!"})
     except Exception as e:
         return jsonify({"error": f"Erro no callback OAuth: {str(e)}"}), 500
-
+    
 
 @calendar_bp.route('/debug_session', methods=['GET'])
 def debug_session():

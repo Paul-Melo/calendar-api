@@ -58,6 +58,10 @@ CORS(app, origins=cors_origins, supports_credentials=True)
 # Debug: log CORS origins configured (temporário)
 print("CORS_ORIGINS =", cors_origins)
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> ce838cad386e713f5c0851a46e05a2024aad46c8
 # Em produção, garantir que cookies de sessão sejam enviados em requests cross-site
 # (SameSite=None exige Secure=True). Valores podem ser sobrescritos por variáveis de
 # ambiente `SESSION_COOKIE_SAMESITE` e `SESSION_COOKIE_SECURE` quando necessário.
