@@ -160,7 +160,7 @@ def oauth2callback():
         return jsonify({"error": f"Erro no callback OAuth: {str(e)}"}), 500
     
 
-    @calendar_bp.route('/debug_session', methods=['GET'])
+@calendar_bp.route('/debug_session', methods=['GET'])
 def debug_session():
     """Endpoint temporário para inspecionar o conteúdo da sessão no contexto do cliente.
        Útil para confirmar se o cookie de sessão foi criado e enviado pelo navegador.
