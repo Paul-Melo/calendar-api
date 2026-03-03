@@ -139,5 +139,11 @@ def serve(path):
             return "index.html not found", 404
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # Use PORT set by platform (Render) when available; default to 5000 for local dev
+    port = int(os.environ.get('PORT', 5000))
+    is_production = os.environ.get('FLASK_ENV') == 'production'
+    if is_production:
+        print("Starting development server in PRODUCTION mode is not recommended. Use Gunicorn." )
+    debug_mode = not is_production
+    app.run(host='0.0.0.0', port=port, debug=debug_mode)
 
