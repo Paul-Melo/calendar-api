@@ -53,7 +53,13 @@ else:
     app.config['SESSION_COOKIE_SAMESITE'] = os.environ.get('SESSION_COOKIE_SAMESITE', 'Lax')
 
 # Configuração de CORS restrita
-cors_origins = os.environ.get('CORS_ORIGINS', 'http://localhost:5173').split(',')
+cors_origins = [
+    origin.strip()
+    for origin in os.environ.get(
+        'CORS_ORIGINS',
+        'http://localhost:5173,https://cognitivatcc.com.br,https://www.cognitivatcc.com.br'
+    ).split(',')
+]
 CORS(app, origins=cors_origins, supports_credentials=True)
 # Debug: log CORS origins configured (temporário)
 print("CORS_ORIGINS =", cors_origins)
