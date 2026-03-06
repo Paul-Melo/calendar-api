@@ -184,21 +184,22 @@ def get_available_slots():
             por exemplo 50min + 10min = 60min (intervalo de 1 hora) entre 09:00 e 18:00.
         - Filtra contra períodos ocupados da FreeBusy API.
     """
-    # Requer usuário autenticado com credenciais na sessão em produção.
+    '''# Requer usuário autenticado com credenciais na sessão em produção.
     if "oauth_credential_id" not in session:
         return jsonify({
             "error": "Sistema de agendamento indisponível. Conecte o Google Calendar.",
             "admin_required": True
-        }), 401
+        }), 401'''
+    
     busy_periods = None
 
     try:
         credentials = get_credentials()
         if not credentials:
             return jsonify({
-                "error": "Sessão expirada. Reconecte o Google Calendar.",
+                "error": "Google Calendar não configurado",
                 "fallback": "whatsapp"
-            }), 401
+            }), 500
         service = build("calendar", "v3", credentials=credentials)
 
         data = request.json or {}
