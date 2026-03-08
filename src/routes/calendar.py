@@ -39,14 +39,30 @@ def get_credentials():
     """
     cred_id = session.get('oauth_credential_id')
     if not cred_id:
+        print("get_credentials: no oauth_credential_id in session")
         return None
 
+    print(f"get_credentials: found oauth_credential_id in session: {cred_id}")
     cred_obj = OAuthCredential.query.get(cred_id)
     if not cred_obj:
+        print(f"get_credentials: no OAuthCredential record with id={cred_id}; clearing session")
         session.pop('oauth_credential_id', None)
         return None
 
-    credentials = Credentials(**cred_obj.to_credentials_dict())
+    # Log presence of tokens/expiry without printing sensitive token strings
+    try:
+        has_token = bool(getattr(cred_obj, 'token', None))
+        has_refresh = bool(getattr(cred_obj, 'refresh_token', None))
+        expires_at = getattr(cred_obj, 'expires_at', None)
+        print(f"get_credentials: cred_obj id={cred_obj.id} has_token={has_token} has_refresh={has_refresh} expires_at={expires_at}")
+    except Exception:
+        print("get_credentials: failed to introspect cred_obj fields")
+
+    try:
+        credentials = Credentials(**cred_obj.to_credentials_dict())
+    except Exception as e:
+        print(f"get_credentials: failed to build Credentials object: {e}")
+        return None
     # Refresh automático se expirado e refresh_token disponível
     if credentials.expired and credentials.refresh_token:
         try:
@@ -178,18 +194,18 @@ def debug_session():
 def get_available_slots():
     """Obter horários disponíveis dinamicamente de acordo com o tipo de serviço.
         Regras:
-        - Duração: premium 80 min, individual/online 50 min.
+        - Duração: 50 min.
         - Buffer padrão entre sessões: 10 min.
         - Geração: avalia início em passos iguais a (duração + buffer),
             por exemplo 50min + 10min = 60min (intervalo de 1 hora) entre 09:00 e 18:00.
         - Filtra contra períodos ocupados da FreeBusy API.
     """
-    '''# Requer usuário autenticado com credenciais na sessão em produção.
-    if "oauth_credential_id" not in session:
+    # Requer usuário autenticado com credenciais na sessão em produção.
+    '''if "oauth_credential_id" not in session:
         return jsonify({
             "error": "Sistema de agendamento indisponível. Conecte o Google Calendar.",
             "admin_required": True
-        }), 401'''
+        }), 401 '''
     
     busy_periods = None
 
@@ -205,7 +221,7 @@ def get_available_slots():
         data = request.json or {}
         print('[DEBUG] /calendar/available_slots called with:', data)
         date = data.get('date')  # Formato: YYYY-MM-DD
-        service_type = data.get('service_type')  # individual | online | premium
+        service_type = data.get('service_type')  # presencial | online | teste
 
         if not date:
             return jsonify({"error": "Data é obrigatória"}), 400
@@ -213,9 +229,9 @@ def get_available_slots():
             return jsonify({"error": "Tipo de serviço é obrigatório"}), 400
 
         duration_map = {
-            'premium': 80,
-            'individual': 50,
-            'online': 50
+            'presencial': 50,
+            'online': 50,
+            'teste': 50
         }
         minutes = duration_map.get(service_type, 50)
         slot_duration = timedelta(minutes=minutes)
@@ -329,20 +345,20 @@ def schedule_appointment():
 
         # Preparar dados do evento com timezone correto
         start_datetime = datetime.fromisoformat(f"{data['date']}T{data['time']}:00").replace(tzinfo=BRAZIL_TZ)
-        # Definir duração conforme tipo (premium 80 min, demais 50)
+        # Definir duração conforme tipo 
         duration_map = {
-            'premium': 80,
-            'individual': 50,
-            'online': 50
+            'presencial': 50,
+            'online': 50,
+            'teste': 50
         }
         minutes = duration_map.get(data['service_type'], 50)
         end_datetime = start_datetime + timedelta(minutes=minutes)
 
         # Mapear tipos de serviço
         service_types = {
-            'individual': 'Terapia Individual',
-            'online': 'Terapia Online',
-            'premium': 'Sessão Premium'
+            'presencial': 'Consulta Presencial',
+            'online': 'Consulta Online',
+            'teste': 'Teste de Serviço'
         }
         service_name = service_types.get(data['service_type'], 'Consulta')
 

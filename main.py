@@ -24,11 +24,20 @@ except Exception:
 if os.environ.get('FLASK_ENV') != 'production':
     os.environ.setdefault('OAUTHLIB_INSECURE_TRANSPORT', '1')
 
+# Aplicação Flask
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
 
-# Configurações de segurança
+# Configurações de segurança e banco de dados
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key-change-in-production')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', f"sqlite:///{os.path.join(os.path.dirname(__file__), 'database', 'app.db')}")
+
+# Preferir DATABASE_URL (ex.: Supabase/Postgres). Em ambientes de desenvolvimento,
+# se DATABASE_URL não estiver setado, podemos usar um fallback para sqlite local.
+database_url = os.environ.get('DATABASE_URL')
+if not database_url and os.environ.get('FLASK_ENV') != 'production':
+    local_db_path = os.path.join(os.path.dirname(__file__), 'database', 'app.db')
+    database_url = f"sqlite:///{local_db_path}"
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # Session / Cookie security defaults for production
 # Use Redis-backed server-side sessions when REDIS_URL is provided
@@ -90,10 +99,16 @@ db.init_app(app)
 app.register_blueprint(user_bp, url_prefix='/api')
 app.register_blueprint(calendar_bp, url_prefix='/calendar')
 
-# Criar tabelas
+# Criar tabelas apenas para sqlite local (evitar criar/alterar schema em bancos gerenciados)
 with app.app_context():
-    os.makedirs('database', exist_ok=True)
-    db.create_all()
+    db_url = app.config.get('SQLALCHEMY_DATABASE_URI') or ''
+    if db_url.startswith('sqlite'):
+        # garantir pasta local de banco
+        os.makedirs(os.path.join(os.path.dirname(__file__), 'database'), exist_ok=True)
+        db.create_all()
+    else:
+        # Em ambientes com Postgres (Supabase) use Alembic para aplicar migrations
+        pass
 
 @app.route('/health')
 def health_check():
