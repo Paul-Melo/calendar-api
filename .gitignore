@@ -12,6 +12,7 @@ client_secret.json
 # Database files (do not commit DB with tokens/PII)
 database/
 *.db
+scripts/
 
 # Distribution / build
 dist/
