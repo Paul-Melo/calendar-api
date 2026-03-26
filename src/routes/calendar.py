@@ -150,7 +150,7 @@ def debug_session():
 
 @calendar_bp.route("/available_slots", methods=["POST"])
 def get_available_slots():
-   ''' #Obter horários disponíveis dinamicamente de acordo com o tipo de serviço.
+    '''#Obter horários disponíveis dinamicamente de acordo com o tipo de serviço.
         Regras:
         - Duração: 50 min.
         - Buffer padrão entre sessões: 10 min.
@@ -162,7 +162,7 @@ def get_available_slots():
         credentials = get_credentials()
         if not credentials:
             return jsonify({
-                "error": "Agenda indisponível no momento"
+                "error": "Agenda indisponível no momento",
                 "fallback": "whatsapp"
             }), 503
         service = build("calendar", "v3", credentials=credentials)
