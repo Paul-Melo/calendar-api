@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 import os
 import json
+import urllib.parse
 from sqlalchemy.exc import IntegrityError
 
 calendar_bp = Blueprint("calendar_bp", __name__)
@@ -33,62 +34,19 @@ if os.environ.get("GOOGLE_CLIENT_ID") and os.environ.get("GOOGLE_CLIENT_SECRET")
 BRAZIL_TZ = ZoneInfo("America/Sao_Paulo")
 
 def get_credentials():
-    """Recupera credenciais a partir do banco usando `oauth_credential_id` na sessão.
+    cred = OAuthCredential.query.first()
 
-    Se necessário, realiza refresh e persiste os tokens atualizados no DB.
-    """
-    cred_id = session.get('oauth_credential_id')
-    if not cred_id:
-        print("get_credentials: no oauth_credential_id in session")
+    if not cred:
         return None
 
-    print(f"get_credentials: found oauth_credential_id in session: {cred_id}")
-    cred_obj = OAuthCredential.query.get(cred_id)
-    if not cred_obj:
-        print(f"get_credentials: no OAuthCredential record with id={cred_id}; clearing session")
-        session.pop('oauth_credential_id', None)
-        return None
-
-    # Log presence of tokens/expiry without printing sensitive token strings
-    try:
-        has_token = bool(getattr(cred_obj, 'token', None))
-        has_refresh = bool(getattr(cred_obj, 'refresh_token', None))
-        expires_at = getattr(cred_obj, 'expires_at', None)
-        print(f"get_credentials: cred_obj id={cred_obj.id} has_token={has_token} has_refresh={has_refresh} expires_at={expires_at}")
-    except Exception:
-        print("get_credentials: failed to introspect cred_obj fields")
-
-    try:
-        credentials = Credentials(**cred_obj.to_credentials_dict())
-    except Exception as e:
-        print(f"get_credentials: failed to build Credentials object: {e}")
-        return None
-    # Refresh automático se expirado e refresh_token disponível
-    if credentials.expired and credentials.refresh_token:
-        try:
-            from google.auth.transport.requests import Request
-            credentials.refresh(Request())
-            # Persistir tokens atualizados no DB (usar encriptação quando disponível)
-            try:
-                cred_obj.set_encrypted_token(credentials.token)
-            except Exception:
-                cred_obj.token = credentials.token
-            cred_obj.refresh_token = credentials.refresh_token
-            cred_obj.token_uri = credentials.token_uri
-            cred_obj.scopes = json.dumps(list(credentials.scopes)) if credentials.scopes else None
-            if getattr(credentials, 'expiry', None):
-                cred_obj.expires_at = credentials.expiry
-            db.session.commit()
-        except Exception:
-            # Remover credencial inválida
-            try:
-                db.session.delete(cred_obj)
-                db.session.commit()
-            except Exception:
-                db.session.rollback()
-            session.pop('oauth_credential_id', None)
-            return None
-    return credentials
+    return Credentials(
+        token=cred.access_token,
+        refresh_token=cred.refresh_token,
+        token_uri=cred.token_uri,
+        client_id=cred.client_id,
+        client_secret=cred.client_secret,
+        scopes=json.loads(cred.scopes) if cred.scopes else []
+    )
 
 @calendar_bp.route("/authorize")
 def authorize():
@@ -192,41 +150,28 @@ def debug_session():
 
 @calendar_bp.route("/available_slots", methods=["POST"])
 def get_available_slots():
-    """Obter horários disponíveis dinamicamente de acordo com o tipo de serviço.
+   ''' #Obter horários disponíveis dinamicamente de acordo com o tipo de serviço.
         Regras:
         - Duração: 50 min.
         - Buffer padrão entre sessões: 10 min.
         - Geração: avalia início em passos iguais a (duração + buffer),
             por exemplo 50min + 10min = 60min (intervalo de 1 hora) entre 09:00 e 18:00.
         - Filtra contra períodos ocupados da FreeBusy API.
-    """
-    # Requer usuário autenticado com credenciais na sessão em produção.
-    '''if "oauth_credential_id" not in session:
-        return jsonify({
-            "error": "Sistema de agendamento indisponível. Conecte o Google Calendar.",
-            "admin_required": True
-        }), 401 '''
-    
-    busy_periods = None
-
+    '''
     try:
         credentials = get_credentials()
         if not credentials:
             return jsonify({
-                "error": "Google Calendar não configurado",
+                "error": "Agenda indisponível no momento"
                 "fallback": "whatsapp"
-            }), 500
+            }), 503
         service = build("calendar", "v3", credentials=credentials)
 
-        data = request.json or {}
-        print('[DEBUG] /calendar/available_slots called with:', data)
-        date = data.get('date')  # Formato: YYYY-MM-DD
-        service_type = data.get('service_type')  # presencial | online | teste
+        date = request.args.get('date')  # Formato: YYYY-MM-DD
+        service_type = request.args.get('service_type')  # presencial | online | teste
 
-        if not date:
-            return jsonify({"error": "Data é obrigatória"}), 400
-        if not service_type:
-            return jsonify({"error": "Tipo de serviço é obrigatório"}), 400
+        if not date or not service_type:
+            return jsonify({"error": "Parâmetros obrigatórios"}), 400
 
         duration_map = {
             'presencial': 50,
@@ -241,91 +186,69 @@ def get_available_slots():
         start_time = datetime.fromisoformat(f"{date}T09:00:00").replace(tzinfo=BRAZIL_TZ)
         end_time = datetime.fromisoformat(f"{date}T18:00:00").replace(tzinfo=BRAZIL_TZ)
 
-        # FreeBusy consulta
-        freebusy_request = {
+        now = datetime.now(BRAZIL_TZ)
+
+        freebusy_result = service.freebusy().query(body={
             "timeMin": start_time.isoformat(),
             "timeMax": end_time.isoformat(),
             "timeZone": "America/Sao_Paulo",
             "items": [{"id": "primary"}]
-        }
-        # Se já temos busy_periods (fallback), pular chamada externa
-        if busy_periods is None:
-            freebusy_result = service.freebusy().query(body=freebusy_request).execute()
-            busy_periods = freebusy_result["calendars"]["primary"].get("busy", [])
-            print(f"[DEBUG] FreeBusy returned {len(busy_periods)} busy periods")
-            # print busy periods truncated
-            for bp in busy_periods[:10]:
-                print('[DEBUG] busy:', bp)
+        }).execute()
+
+        busy_periods = freebusy_result["calendars"]["primary"].get("busy", [])
 
         # Normalizar períodos ocupados para comparação
         normalized_busy = []
         for busy in busy_periods:
-            b_start = datetime.fromisoformat(busy['start'].replace('Z', '+00:00'))
-            b_end = datetime.fromisoformat(busy['end'].replace('Z', '+00:00'))
-            if b_start.tzinfo is None:
-                b_start = b_start.replace(tzinfo=BRAZIL_TZ)
-            if b_end.tzinfo is None:
-                b_end = b_end.replace(tzinfo=BRAZIL_TZ)
+            b_start = datetime.fromisoformat(busy['start'].replace('Z', '+00:00')).astimezone(BRAZIL_TZ)
+            b_end = datetime.fromisoformat(busy['end'].replace('Z', '+00:00')).astimezone(BRAZIL_TZ)
             normalized_busy.append((b_start, b_end))
 
         # Iterar em passos iguais a duração da sessão + buffer (ex.: 50 + 10 = 60min)
         # isso garante intervalos horários adequados quando a sessão tem duração
         # menor que a hora (por exemplo sessões de 50min => intervalos de 1h).
         step = slot_duration + buffer_duration
-        available_slots = []
         current = start_time
+
         # Janela de almoço (bloqueada): 12:00 - 13:00
         lunch_start = datetime.fromisoformat(f"{date}T12:00:00").replace(tzinfo=BRAZIL_TZ)
         lunch_end = datetime.fromisoformat(f"{date}T13:00:00").replace(tzinfo=BRAZIL_TZ)
+
+        available_slots = []
+
         while current + slot_duration <= end_time:
+
+            if current < now:
+                current += step
+                continue
+
             proposed_end = current + slot_duration
-            # Verificar conflitos (incluindo buffer no final para próxima sessão)
-            has_conflict = False
-            for b_start, b_end in normalized_busy:
-                # conflito se intervalo cruza período ocupado
-                if current < b_end and proposed_end > b_start:
-                    has_conflict = True
-                    break
-            if not has_conflict:
-                # Verificar também se adicionar buffer não cola em período ocupado seguinte
-                buffer_end = proposed_end + buffer_duration
-                conflict_buffer = False
-                for b_start, b_end in normalized_busy:
-                    if proposed_end < b_end and buffer_end > b_start:
-                        conflict_buffer = True
-                        break
-                # Também bloquear período de almoço: se o slot proposto overlap com
-                # lunch_start..lunch_end, ignorar (início ou fim dentro do almoço).
-                overlaps_lunch = not (proposed_end <= lunch_start or current >= lunch_end)
-                if not conflict_buffer and not overlaps_lunch:
-                    available_slots.append({
-                        'start': current.strftime('%H:%M'),
-                        'end': proposed_end.strftime('%H:%M'),
-                        'datetime': current.isoformat(),
-                        'duration_minutes': minutes,
-                        'service_type': service_type
-                    })
+            conflict = any(current < b_end and proposed_end > b_start for b_start, b_end in normalized_busy)
+
+            buffer_conflict = any(
+                proposed_end < b_end and (proposed_end + buffer_duration) > b_start
+                for b_start, b_end in normalized_busy
+            )
+
+            overlaps_lunch = not (proposed_end <= lunch_start or current >= lunch_end)
+
+            if not conflict and not buffer_conflict and not overlaps_lunch:
+                available_slots.append({
+                    "start": current.strftime('%H:%M'),
+                    "end": proposed_end.strftime('%H:%M'),
+                    "datetime": current.isoformat()
+                })
+
             current += step
 
-        print(f"[DEBUG] Generated {len(available_slots)} available slots for {service_type} ({minutes}min)")
         return jsonify({
             "date": date,
-            "service_type": service_type,
-            "duration_minutes": minutes,
-            "available_slots": available_slots,
-            "timezone": "America/Sao_Paulo"
+            "available_slots": available_slots
         })
 
-    except HttpError:
-        return jsonify({
-            "error": "Erro ao acessar calendário. Tente novamente ou entre em contato via WhatsApp.",
-            "fallback": "whatsapp"
-        }), 500
-    except Exception:
-        return jsonify({
-            "error": "Erro temporário no sistema. Entre em contato via WhatsApp.",
-            "fallback": "whatsapp"
-        }), 500
+    except Exception as e:
+        print("ERROR:", str(e))
+        return jsonify({"error": "Erro ao buscar horários"}), 500
 
 @calendar_bp.route("/schedule_appointment", methods=["POST"])
 def schedule_appointment():
@@ -475,45 +398,58 @@ def schedule_appointment():
             except Exception:
                 pass
             return jsonify({"error": "Erro ao salvar agendamento no sistema. Tente novamente."}), 500
-        # try:
-        #     erp_response = requests.post(
-        #         f"{ERP_BASE_URL}/api/appointments/",
-        #         json={
-        #             "google_event_id": created_event["id"],
-        #             "patient_name": data['name'],
-        #             "patient_email": data['email'],
-        #             "patient_phone": data['phone'],
-        #             "start_datetime": start_datetime.isoformat(),
-        #             "end_datetime": end_datetime.isoformat(),
-        #             "service_type": data['service_type']
-        #         },
-        #         headers={"Authorization": f"Bearer {ERP_TOKEN}"},
-        #         timeout=5
-        #     )
-        #     erp_response.raise_for_status()
-        # except Exception as erp_error:
-        #     # Se falhar no ERP, apagar o evento do Google para evitar inconsistência
-        #     service.events().delete(calendarId='primary', eventId=created_event["id"]).execute()
-        #     raise Exception(f"Erro na integração com sistema interno: {erp_error}")
         
         # Responder com dados finais do agendamento
-        user = User.query.get(user.id)
+        user_db = User.query.get(user.id)
         ap = Appointment.query.get(reserved_id)
+
+        # Validações para evitar erro 500
+        if not user_db:
+            return jsonify({"error": "Usuário não encontrado"}), 404
+
+        if not ap:
+            return jsonify({"error": "Agendamento não encontrado"}), 404
+
+        # WhatsApp
+        numero = os.getenv("NUMERO_WHATSAPP") 
+        if not numero:
+            raise ValueError("WHATSAPP_NUMBER não configurado")
+
+        if not numero:
+            return jsonify({
+            "error": "Configuração de WhatsApp não encontrada"
+            }), 500
+
+        mensagem = f"""
+        Olá! Acabei de agendar uma consulta.
+
+        📅 Data: {data.get('date', 'N/A')}
+        ⏰ Horário: {data.get('time', 'N/A')}
+        📍 Tipo: {data.get('service_type', 'N/A')}
+
+        Poderia confirmar, por favor? 😊
+        """
+
+        whatsapp_url = f"https://wa.me/{numero}?text={urllib.parse.quote(mensagem)}"
+
+        # ✅ RETORNO ÚNICO (SEM DUPLICIDADE)
         return jsonify({
             "message": "Agendamento realizado com sucesso! Você receberá um email de confirmação em breve.",
             "appointment": {
-                "event_id": created_event["id"],
+                "event_id": created_event.get("id"),
                 "html_link": created_event.get("htmlLink"),
                 "start": created_event.get("start"),
                 "end": created_event.get("end"),
-                "patient_name": user.name,
-                "patient_email": user.email,
+                "patient_name": user_db.name,
+                "patient_email": user_db.email,
                 "service_type": service_name,
                 "duration_minutes": minutes,
-                "location": event["location"],
+                "location": event.get("location"),
                 "local_id": ap.id
-            }
+            },
+            "whatsapp_link": whatsapp_url
         })
+
     except Exception as e:
         return jsonify({
             "error": "Erro temporário no sistema. Entre em contato via WhatsApp.",
