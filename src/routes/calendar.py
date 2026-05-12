@@ -121,7 +121,8 @@ def authorize():
         log_error("AUTHORIZE ERROR", e)
 
         return jsonify({
-            "error": f"Erro na autorização: {str(e)}"
+            "error": str(e),
+            "type": str(type(e))
         }), 500
 
 
