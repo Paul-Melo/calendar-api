@@ -5,8 +5,6 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from flask import Flask, request, jsonify, session, send_from_directory
 from flask_cors import CORS
-from flask_session import Session as FlaskSession
-import redis as redis_lib
 
 # Capturar e logar qualquer erro de importação inicial para facilitar debug no deploy
 try:
@@ -39,27 +37,11 @@ if not database_url and os.environ.get('FLASK_ENV') != 'production':
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-# Session / Cookie security defaults for production
-# Use Redis-backed server-side sessions when REDIS_URL is provided
-redis_url = os.environ.get('REDIS_URL')
-if redis_url:
-    try:
-        redis_client = redis_lib.from_url(redis_url)
-        app.config['SESSION_TYPE'] = 'redis'
-        app.config['SESSION_REDIS'] = redis_client
-        app.config['SESSION_PERMANENT'] = False
-        # Ensure cookies are secure in production; can be overridden via env vars
-        app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', '1') == '1'
-        app.config['SESSION_COOKIE_HTTPONLY'] = os.environ.get('SESSION_COOKIE_HTTPONLY', '1') == '1'
-        app.config['SESSION_COOKIE_SAMESITE'] = os.environ.get('SESSION_COOKIE_SAMESITE', 'None')
-        FlaskSession(app)
-    except Exception as e:
-        print(f"Aviso: falha ao conectar no Redis para sessão: {e}")
-else:
-    # If no Redis provided, ensure cookie flags are still secure by default
-    app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', '0') == '1'
-    app.config['SESSION_COOKIE_HTTPONLY'] = os.environ.get('SESSION_COOKIE_HTTPONLY', '1') == '1'
-    app.config['SESSION_COOKIE_SAMESITE'] = os.environ.get('SESSION_COOKIE_SAMESITE', 'None')
+
+# Sessão padrão Flask via cookies seguros
+app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
 # Configuração de CORS restrita
 cors_origins = [
