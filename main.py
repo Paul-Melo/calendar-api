@@ -51,7 +51,7 @@ if redis_url:
         # Ensure cookies are secure in production; can be overridden via env vars
         app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', '1') == '1'
         app.config['SESSION_COOKIE_HTTPONLY'] = os.environ.get('SESSION_COOKIE_HTTPONLY', '1') == '1'
-        app.config['SESSION_COOKIE_SAMESITE'] = os.environ.get('SESSION_COOKIE_SAMESITE', 'Lax')
+        app.config['SESSION_COOKIE_SAMESITE'] = os.environ.get('SESSION_COOKIE_SAMESITE', 'None')
         FlaskSession(app)
     except Exception as e:
         print(f"Aviso: falha ao conectar no Redis para sessão: {e}")
@@ -59,7 +59,7 @@ else:
     # If no Redis provided, ensure cookie flags are still secure by default
     app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', '0') == '1'
     app.config['SESSION_COOKIE_HTTPONLY'] = os.environ.get('SESSION_COOKIE_HTTPONLY', '1') == '1'
-    app.config['SESSION_COOKIE_SAMESITE'] = os.environ.get('SESSION_COOKIE_SAMESITE', 'Lax')
+    app.config['SESSION_COOKIE_SAMESITE'] = os.environ.get('SESSION_COOKIE_SAMESITE', 'None')
 
 # Configuração de CORS restrita
 cors_origins = [
