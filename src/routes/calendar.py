@@ -103,8 +103,18 @@ def authorize():
         flow = Flow.from_client_config(
             CLIENT_CONFIG,
             scopes=SCOPES,
-            redirect_uri=url_for("calendar_bp.oauth2callback", _external=True)
+            redirect_uri=redirect_uri
         )
+
+        redirect_uri = os.getenv(
+            "GOOGLE_REDIRECT_URI",
+            "https://api.cognitivatcc.com.br/calendar/oauth2callback"
+        )
+
+        print("===== GOOGLE OAUTH DEBUG =====")
+        print("REDIRECT URI:", redirect_uri)
+        print("CLIENT ID:", os.environ.get("GOOGLE_CLIENT_ID"))
+        print("==============================")
 
         authorization_url, state = flow.authorization_url(
             access_type="offline",
