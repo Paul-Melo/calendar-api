@@ -94,10 +94,10 @@ def authorize():
     """Iniciar OAuth"""
 
     try:
+
         if CLIENT_CONFIG is None:
             return jsonify({
-                "error": "Credenciais Google não configuradas",
-                "admin_required": True
+                "error": "Credenciais Google não configuradas"
             }), 503
 
         redirect_uri = os.getenv(
@@ -110,16 +110,16 @@ def authorize():
         print("CLIENT ID:", os.environ.get("GOOGLE_CLIENT_ID"))
         print("==============================")
 
-        authorization_url, state = flow.authorization_url(
-            access_type="offline",
-            include_granted_scopes=True,
-            prompt="consent"
-        )
-
         flow = Flow.from_client_config(
             CLIENT_CONFIG,
             scopes=SCOPES,
             redirect_uri=redirect_uri
+        )
+
+        authorization_url, state = flow.authorization_url(
+            access_type="offline",
+            include_granted_scopes=True,
+            prompt="consent"
         )
 
         session["oauth_state"] = state
@@ -128,6 +128,7 @@ def authorize():
         return redirect(authorization_url)
 
     except Exception as e:
+
         log_error("AUTHORIZE ERROR", e)
 
         return jsonify({
