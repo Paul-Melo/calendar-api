@@ -22,8 +22,7 @@ calendar_bp = Blueprint("calendar_bp", __name__)
 
 # Configurações do OAuth 2.0
 SCOPES = [
-    "https://www.googleapis.com/auth/calendar.events",
-    "https://www.googleapis.com/auth/calendar.readonly"
+    "https://www.googleapis.com/auth/calendar"
 ]
 
 # Configuração via variáveis de ambiente
