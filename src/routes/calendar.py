@@ -100,12 +100,6 @@ def authorize():
                 "admin_required": True
             }), 503
 
-        flow = Flow.from_client_config(
-            CLIENT_CONFIG,
-            scopes=SCOPES,
-            redirect_uri=redirect_uri
-        )
-
         redirect_uri = os.getenv(
             "GOOGLE_REDIRECT_URI",
             "https://api.cognitivatcc.com.br/calendar/oauth2callback"
@@ -120,6 +114,12 @@ def authorize():
             access_type="offline",
             include_granted_scopes=True,
             prompt="consent"
+        )
+
+        flow = Flow.from_client_config(
+            CLIENT_CONFIG,
+            scopes=SCOPES,
+            redirect_uri=redirect_uri
         )
 
         session["oauth_state"] = state
