@@ -92,25 +92,52 @@ def get_credentials():
         return None
 
 
-@calendar_bp.route('/authorize')
+@calendar_bp.route("/authorize")
 def authorize():
-    redirect_uri = "https://api.cognitivatcc.com.br/calendar/oauth2callback"
+    """Iniciar OAuth"""
 
-    flow = Flow.from_client_secrets_file(
-        CLIENT_SECRETS_FILE,
-        scopes=[
-            "https://www.googleapis.com/auth/calendar"
-        ],
-        redirect_uri=redirect_uri
-    )
+    try:
 
-    authorization_url, state = flow.authorization_url(
-        access_type='offline',
-        include_granted_scopes='true',
-        prompt='consent'
-    )
+        if CLIENT_CONFIG is None:
+            return jsonify({
+                "error": "Credenciais Google não configuradas"
+            }), 503
 
-    return redirect(authorization_url)
+        redirect_uri = os.getenv(
+            "GOOGLE_REDIRECT_URI",
+            "https://api.cognitivatcc.com.br/calendar/oauth2callback"
+        )
+
+        print("===== GOOGLE OAUTH DEBUG =====")
+        print("REDIRECT URI:", redirect_uri)
+        print("CLIENT ID:", os.environ.get("GOOGLE_CLIENT_ID"))
+        print("==============================")
+
+        flow = Flow.from_client_config(
+            CLIENT_CONFIG,
+            scopes=SCOPES,
+            redirect_uri=redirect_uri
+        )
+
+        authorization_url, state = flow.authorization_url(
+            access_type="offline",
+            include_granted_scopes=True,
+            prompt="consent"
+        )
+
+        session["oauth_state"] = state
+        session.modified = True
+
+        return redirect(authorization_url)
+
+    except Exception as e:
+
+        log_error("AUTHORIZE ERROR", e)
+
+        return jsonify({
+            "error": str(e),
+            "type": str(type(e))
+        }), 500
 
 
 @calendar_bp.route("/oauth2callback")
