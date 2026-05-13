@@ -103,7 +103,7 @@ def authorize():
             }), 503
 
         redirect_uri = os.getenv(
-            "GOOGLE_REDIRECT_URI",
+            "GOOGLE_AUTH_REDIRECT_URI",
             "https://api.cognitivatcc.com.br/calendar/oauth2callback"
         )
 
