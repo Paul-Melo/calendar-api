@@ -139,101 +139,56 @@ def authorize():
         }), 500
 
 
-@calendar_bp.route("/oauth2callback")
+@calendar_bp.route('/oauth2callback')
 def oauth2callback():
-    """Callback OAuth"""
-
     try:
-        state = session.get("oauth_state")
+        print("===== CALLBACK START =====")
+
+        print("ARGS:", dict(request.args))
+
+        state = session.get('state')
+
+        print("SESSION STATE:", state)
 
         if not state:
             return jsonify({
                 "error": "Sessão OAuth expirada"
             }), 400
 
-        if CLIENT_CONFIG is None:
-            return jsonify({
-                "error": "Credenciais Google não configuradas"
-            }), 503
-
         flow = Flow.from_client_config(
             CLIENT_CONFIG,
             scopes=SCOPES,
-            state=state,
-            redirect_uri=url_for("calendar_bp.oauth2callback", _external=True)
+            state=state
         )
 
-        flow.fetch_token(authorization_response=request.url)
+        flow.redirect_uri = "https://api.cognitivatcc.com.br/calendar/oauth2callback"
+
+        authorization_response = request.url
+
+        print("AUTH RESPONSE:", authorization_response)
+
+        flow.fetch_token(
+            authorization_response=authorization_response
+        )
 
         credentials = flow.credentials
 
-        try:
-            cred = OAuthCredential.query.first()
+        print("TOKEN OK")
+        print(credentials)
 
-            if not cred:
-                cred = OAuthCredential()
-
-            cred.client_id = credentials.client_id
-            cred.refresh_token = credentials.refresh_token
-            cred.token_uri = credentials.token_uri
-            cred.client_secret = credentials.client_secret
-            cred.scopes = json.dumps(list(credentials.scopes)) if credentials.scopes else None
-            cred.expires_at = getattr(credentials, "expiry", None)
-
-            cred.set_encrypted_token(credentials.token)
-
-            db.session.add(cred)
-            db.session.commit()
-
-            session["oauth_credential_id"] = cred.id
-            session.modified = True
-
-        except Exception as e:
-            db.session.rollback()
-
-            return jsonify({
-                "error": f"Falha ao persistir credenciais: {str(e)}"
-            }), 500
-
-        frontend_url = os.getenv(
-            "FRONTEND_URL",
-            "https://cognitivatcc.com.br"
-        )
-
-        return redirect(f"{frontend_url}?google_auth=success")
+        return jsonify({
+            "success": True
+        })
 
     except Exception as e:
-        log_error("OAUTH CALLBACK ERROR", e)
+        print("===== CALLBACK ERROR =====")
+        print(str(e))
+        traceback.print_exc()
 
         return jsonify({
-            "error": f"Erro no callback OAuth: {str(e)}"
-        }), 500
-
-
-@calendar_bp.route("/debug_session", methods=["GET"])
-def debug_session():
-    """Debug da sessão"""
-
-    try:
-        sess = {
-            k: (
-                v if isinstance(v, (str, int, float, bool, type(None)))
-                else str(v)
-            )
-            for k, v in session.items()
-        }
-
-        return jsonify({
-            "session": sess
-        }), 200
-
-    except Exception as e:
-        log_error("DEBUG SESSION ERROR", e)
-
-        return jsonify({
-            "error": "Erro ao ler sessão"
-        }), 500
-
+            "error": str(e),
+            "type": str(type(e))
+        }), 400
 
 @calendar_bp.route("/available_slots", methods=["POST"])
 def get_available_slots():
