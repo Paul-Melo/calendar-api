@@ -51,20 +51,29 @@ def log_error(context, error):
     traceback.print_exc()
     print("=====================\n")
 
-
 def get_credentials():
     """
     Obtém credenciais salvas no banco e faz refresh automático.
     """
 
+    print("\n===== GET CREDENTIALS START =====")
+
     cred = OAuthCredential.query.order_by(OAuthCredential.id.desc()).first()
 
+    print("CREDENCIAL ENCONTRADA:", bool(cred))
+
     if not cred:
+        print("Nenhuma credencial no banco")
         return None
 
     try:
+        token = cred.get_decrypted_token()
+
+        print("TOKEN EXISTE:", bool(token))
+        print("REFRESH TOKEN EXISTE:", bool(cred.refresh_token))
+
         credentials = Credentials(
-            token=cred.get_decrypted_token(),
+            token=token,
             refresh_token=cred.refresh_token,
             token_uri=cred.token_uri,
             client_id=cred.client_id,
@@ -72,9 +81,17 @@ def get_credentials():
             scopes=json.loads(cred.scopes) if cred.scopes else []
         )
 
+        print("CREDENTIALS CRIADAS")
+        print("EXPIRED:", credentials.expired)
+
         # Refresh automático
         if credentials.expired and credentials.refresh_token:
+
+            print("FAZENDO REFRESH TOKEN...")
+
             credentials.refresh(Request())
+
+            print("REFRESH REALIZADO COM SUCESSO")
 
             cred.set_encrypted_token(credentials.token)
 
@@ -83,12 +100,54 @@ def get_credentials():
 
             db.session.commit()
 
+            print("TOKEN SALVO NO BANCO")
+
+        print("RETORNANDO CREDENTIALS")
+
         return credentials
 
     except Exception as e:
         log_error("GET CREDENTIALS ERROR", e)
         db.session.rollback()
         return None
+    
+#def get_credentials():
+#    """
+#    Obtém credenciais salvas no banco e faz refresh automático.
+#    """
+
+#    cred = OAuthCredential.query.order_by(OAuthCredential.id.desc()).first()
+
+#    if not cred:
+#        return None
+
+#    try:
+#        credentials = Credentials(
+#            token=cred.get_decrypted_token(),
+#            refresh_token=cred.refresh_token,
+#            token_uri=cred.token_uri,
+#            client_id=cred.client_id,
+#            client_secret=cred.client_secret,
+#            scopes=json.loads(cred.scopes) if cred.scopes else []
+        )
+
+        # Refresh automático
+#        if credentials.expired and credentials.refresh_token:
+#            credentials.refresh(Request())
+
+#            cred.set_encrypted_token(credentials.token)
+
+#            if credentials.expiry:
+#               cred.expires_at = credentials.expiry
+
+#            db.session.commit()
+
+#        return credentials
+
+#    except Exception as e:
+#        log_error("GET CREDENTIALS ERROR", e)
+#        db.session.rollback()
+#        return None
 
 
 @calendar_bp.route("/authorize")
@@ -128,7 +187,7 @@ def authorize():
         session.modified = True
 
         print("STATE SALVO:", state)
-        
+
         return redirect(authorization_url)
 
     except Exception as e:
