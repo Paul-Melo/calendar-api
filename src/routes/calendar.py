@@ -124,9 +124,11 @@ def authorize():
             prompt="consent"
         )
 
-        session["oauth_state"] = state
+        session["state"] = state
         session.modified = True
 
+        print("STATE SALVO:", state)
+        
         return redirect(authorization_url)
 
     except Exception as e:
