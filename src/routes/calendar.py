@@ -129,7 +129,7 @@ def get_credentials():
 #            client_id=cred.client_id,
 #            client_secret=cred.client_secret,
 #            scopes=json.loads(cred.scopes) if cred.scopes else []
-        )
+#        )
 
         # Refresh automático
 #        if credentials.expired and credentials.refresh_token:
