@@ -30,6 +30,8 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 # Configurações de segurança e banco de dados
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key-change-in-production')
+app.config["SESSION_PERMANENT"] = True
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=30)
 
 # Preferir DATABASE_URL (ex.: Supabase/Postgres). Em ambientes de desenvolvimento,
 # se DATABASE_URL não estiver setado, podemos usar um fallback para sqlite local.
