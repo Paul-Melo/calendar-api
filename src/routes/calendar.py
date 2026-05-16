@@ -152,6 +152,8 @@ def get_credentials():
 
 @calendar_bp.route("/authorize")
 def authorize():
+    session.permanent = True
+
     """Iniciar OAuth"""
 
     try:
@@ -211,6 +213,8 @@ def authorize():
 
 @calendar_bp.route('/oauth2callback')
 def oauth2callback():
+    session.permanent = True
+    
     try:
         print("===== CALLBACK START =====")
 
