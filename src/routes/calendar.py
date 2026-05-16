@@ -183,6 +183,15 @@ def authorize():
             prompt="consent"
         )
 
+        # Debug: imprimir URL de autorização e parâmetros chave
+        try:
+            print("AUTHORIZATION_URL:", authorization_url)
+            parsed_qs = urllib.parse.parse_qs(urllib.parse.urlparse(authorization_url).query)
+            debug_params = {k: parsed_qs.get(k) for k in ("redirect_uri", "client_id", "scope")}
+            print("AUTH URL PARAMS:", debug_params)
+        except Exception:
+            pass
+
         session["state"] = state
         session.modified = True
 
@@ -849,3 +858,36 @@ def admin_test():
             "status": "error",
             "message": f"Erro na integração: {str(e)}"
         }), 500
+
+
+@calendar_bp.route("/admin/credentials", methods=["GET"])
+def admin_credentials():
+    """
+    Rota de depuração: lista credenciais OAuth armazenadas.
+    Disponível somente quando `app.debug` for True.
+    """
+
+    if not (current_app and current_app.debug):
+        return jsonify({
+            "error": "Disponível somente em debug"
+        }), 403
+
+    creds = OAuthCredential.query.order_by(OAuthCredential.id.desc()).all()
+
+    result = []
+    for c in creds:
+        result.append({
+            "id": c.id,
+            "client_id": c.client_id,
+            "has_refresh": bool(c.refresh_token),
+            "has_encrypted": bool(c.token_encrypted and c.token_nonce),
+            "has_legacy_token": bool(c.token),
+            "expires_at": c.expires_at.isoformat() if c.expires_at else None
+        })
+
+    key_present = bool(os.environ.get("TOKEN_ENCRYPTION_KEY"))
+
+    return jsonify({
+        "credentials": result,
+        "token_encryption_key_present": key_present
+    })
