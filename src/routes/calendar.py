@@ -237,6 +237,30 @@ def oauth2callback():
         print("TOKEN OK")
         print(credentials)
 
+        # Salvar credenciais no banco para uso posterior
+        try:
+            with db.session.begin():
+                cred = OAuthCredential(
+                    client_id=(getattr(credentials, "client_id", None) or os.environ.get("GOOGLE_CLIENT_ID")),
+                    refresh_token=getattr(credentials, "refresh_token", None),
+                    token_uri=getattr(credentials, "token_uri", None),
+                    scopes=json.dumps(list(credentials.scopes)) if getattr(credentials, "scopes", None) else None
+                )
+
+                # Tenta encriptar o token; se falhar, grava em texto como fallback
+                try:
+                    cred.set_encrypted_token(getattr(credentials, "token", None))
+                except Exception:
+                    cred.token = getattr(credentials, "token", None)
+
+                if getattr(credentials, "expiry", None):
+                    cred.expires_at = credentials.expiry
+
+                db.session.add(cred)
+        except Exception as e:
+            db.session.rollback()
+            log_error("SAVE CREDENTIAL ERROR", e)
+
         return jsonify({
             "success": True
         })
