@@ -86,7 +86,10 @@ class OAuthCredential(db.Model):
             nonce, ciphertext = crypto.encrypt_token(plaintext_token)
             self.token_encrypted = ciphertext
             self.token_nonce = nonce
-            self.token = None
+            # A primeira migration criou `token` como NOT NULL. Mantemos string
+            # vazia para compatibilidade com bancos antigos; a leitura prefere
+            # token_encrypted/token_nonce quando existirem.
+            self.token = ""
         except Exception:
             # Se não houver chave, fallback para salvar em texto (não ideal)
             self.token = plaintext_token
@@ -98,4 +101,3 @@ class OAuthCredential(db.Model):
 
     def __repr__(self):
         return f'<OAuthCredential {self.id} client_id={self.client_id}>'
-

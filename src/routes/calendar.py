@@ -181,7 +181,7 @@ def authorize():
 
         authorization_url, state = flow.authorization_url(
             access_type="offline",
-            include_granted_scopes=True,
+            include_granted_scopes="true",
             prompt="consent"
         )
 
@@ -189,7 +189,7 @@ def authorize():
         try:
             print("AUTHORIZATION_URL:", authorization_url)
             parsed_qs = urllib.parse.parse_qs(urllib.parse.urlparse(authorization_url).query)
-            debug_params = {k: parsed_qs.get(k) for k in ("redirect_uri", "client_id", "scope")}
+            debug_params = {k: parsed_qs.get(k) for k in ("redirect_uri", "client_id", "scope", "include_granted_scopes")}
             print("AUTH URL PARAMS:", debug_params)
         except Exception:
             pass
@@ -235,7 +235,10 @@ def oauth2callback():
             state=state
         )
 
-        flow.redirect_uri = "https://api.cognitivatcc.com.br/calendar/oauth2callback"
+        flow.redirect_uri = os.getenv(
+            "GOOGLE_AUTH_REDIRECT_URI",
+            "https://api.cognitivatcc.com.br/calendar/oauth2callback"
+        )
 
         authorization_response = request.url
 
