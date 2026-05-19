@@ -253,7 +253,7 @@ def oauth2callback():
         print("TOKEN OK")
         print(credentials)
 
-        # Salvar credenciais no banco para uso posterior
+        # Salvar credenciais no banco para uso posterior.
         try:
             with db.session.begin():
                 cred = OAuthCredential(
