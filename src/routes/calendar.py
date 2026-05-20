@@ -457,7 +457,7 @@ def schedule_appointment():
         # implícita aberta no SQLAlchemy 2.x. Fechamos essa transação antes
         # dos blocos de escrita abaixo.
         db.session.rollback()
-        
+
         data = request.get_json(silent=True) or {}
 
         required_fields = [
@@ -674,15 +674,18 @@ def schedule_appointment():
                 "error": "NUMERO_WHATSAPP não configurado"
             }), 500
 
-        mensagem = f"""
-Olá! Acabei de agendar uma consulta.
+        try:
+            data_formatada = datetime.fromisoformat(data["date"]).strftime("%d/%m/%Y")
+        except Exception:
+            data_formatada = data.get("date", "N/A")
 
-📅 Data: {data.get('date', 'N/A')}
-⏰ Horário: {data.get('time', 'N/A')}
-📍 Tipo: {service_name}
+        mensagem = f"""Olá! Acabei de agendar uma consulta.
 
-Poderia confirmar, por favor? 😊
-"""
+Data: {data_formatada}
+Horario: {data.get('time', 'N/A')}
+Tipo: {service_name}
+
+Poderia confirmar, por favor?"""
 
         whatsapp_url = (
             f"https://wa.me/{numero}"
