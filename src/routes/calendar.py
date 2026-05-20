@@ -453,6 +453,11 @@ def schedule_appointment():
                 "fallback": "whatsapp"
             }), 503
 
+        # get_credentials() faz leitura no banco e pode deixar uma transação
+        # implícita aberta no SQLAlchemy 2.x. Fechamos essa transação antes
+        # dos blocos de escrita abaixo.
+        db.session.rollback()
+        
         data = request.get_json(silent=True) or {}
 
         required_fields = [
