@@ -679,10 +679,10 @@ def schedule_appointment():
         except Exception:
             data_formatada = data.get("date", "N/A")
 
-        mensagem = f"""Olá! Acabei de agendar uma consulta.
+        mensagem = f"""Olá! Me chamo {user_db.name}. Acabei de agendar uma consulta.
 
 Data: {data_formatada}
-Horario: {data.get('time', 'N/A')}
+Horário: {data.get('time', 'N/A')}
 Tipo: {service_name}
 
 Poderia confirmar, por favor?"""
