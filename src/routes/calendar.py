@@ -257,7 +257,6 @@ def oauth2callback():
         try:
             with db.session.begin():
                 cred = OAuthCredential(
-                    cred = OAuthCredential(
                     client_id=(getattr(credentials, "client_id", None) or os.environ.get("GOOGLE_CLIENT_ID")),
                     refresh_token=getattr(credentials, "refresh_token", None),
                     token_uri=getattr(credentials, "token_uri", None),
