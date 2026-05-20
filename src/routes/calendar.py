@@ -499,7 +499,7 @@ def schedule_appointment():
         service_types = {
             "presencial": "Consulta Presencial",
             "online": "Consulta Online",
-            "teste": "Teste de Serviço"
+            "teste": "Avaliação Neuropsicológica"
         }
 
         service_name = service_types.get(
