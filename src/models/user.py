@@ -61,6 +61,8 @@ class OAuthCredential(db.Model):
 
     user = db.relationship('User', backref=db.backref('oauth_credentials', lazy=True))
 
+    client_secret = None
+
     def to_credentials_dict(self):
         # Decrypt token if encrypted, otherwise return legacy token
         token_val = None
