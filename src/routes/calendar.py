@@ -43,6 +43,7 @@ if os.environ.get("GOOGLE_CLIENT_ID") and os.environ.get("GOOGLE_CLIENT_SECRET")
 
 # Timezone Brasil
 BRAZIL_TZ = ZoneInfo("America/Sao_Paulo")
+GOOGLE_TOKEN_URI = "https://oauth2.googleapis.com/token"
 
 
 def log_error(context, error):
@@ -50,6 +51,24 @@ def log_error(context, error):
     print(str(error))
     traceback.print_exc()
     print("=====================\n")
+
+
+def get_google_client_id():
+    return os.environ.get("GOOGLE_CLIENT_ID")
+
+
+def get_google_client_secret():
+    return os.environ.get("GOOGLE_CLIENT_SECRET")
+
+
+def build_calendar_service(credentials):
+    return build(
+        "calendar",
+        "v3",
+        credentials=credentials,
+        cache_discovery=False
+    )
+
 
 def get_credentials():
     """
@@ -72,20 +91,39 @@ def get_credentials():
         print("TOKEN EXISTE:", bool(token))
         print("REFRESH TOKEN EXISTE:", bool(cred.refresh_token))
 
+        client_id = cred.client_id or get_google_client_id()
+        client_secret = get_google_client_secret()
+        token_uri = cred.token_uri or GOOGLE_TOKEN_URI
+
+        missing_fields = []
+        if not cred.refresh_token:
+            missing_fields.append("refresh_token")
+        if not token_uri:
+            missing_fields.append("token_uri")
+        if not client_id:
+            missing_fields.append("client_id")
+        if not client_secret:
+            missing_fields.append("client_secret")
+
+        if missing_fields:
+            print("CREDENCIAL INCOMPLETA:", ", ".join(missing_fields))
+            return None
+
         credentials = Credentials(
             token=token,
             refresh_token=cred.refresh_token,
-            token_uri=cred.token_uri,
-            client_id=cred.client_id,
-            client_secret=cred.client_secret,
+            token_uri=token_uri,
+            client_id=client_id,
+            client_secret=client_secret,
             scopes=json.loads(cred.scopes) if cred.scopes else []
         )
 
         print("CREDENTIALS CRIADAS")
         print("EXPIRED:", credentials.expired)
+        print("VALID:", credentials.valid)
 
         # Refresh automático
-        if credentials.expired and credentials.refresh_token:
+        if (credentials.expired or not credentials.valid) and credentials.refresh_token:
 
             print("FAZENDO REFRESH TOKEN...")
 
@@ -97,6 +135,11 @@ def get_credentials():
 
             if credentials.expiry:
                 cred.expires_at = credentials.expiry
+
+            if not cred.client_id:
+                cred.client_id = client_id
+            if not cred.token_uri:
+                cred.token_uri = token_uri
 
             db.session.commit()
 
@@ -257,9 +300,9 @@ def oauth2callback():
         try:
             with db.session.begin():
                 cred = OAuthCredential(
-                    client_id=(getattr(credentials, "client_id", None) or os.environ.get("GOOGLE_CLIENT_ID")),
+                    client_id=(getattr(credentials, "client_id", None) or get_google_client_id()),
                     refresh_token=getattr(credentials, "refresh_token", None),
-                    token_uri=getattr(credentials, "token_uri", None),
+                    token_uri=(getattr(credentials, "token_uri", None) or GOOGLE_TOKEN_URI),
                     scopes=json.dumps(list(credentials.scopes)) if getattr(credentials, "scopes", None) else None
                 )
 
@@ -313,7 +356,7 @@ def get_available_slots():
                 "fallback": "whatsapp"
             }), 503
 
-        service = build("calendar", "v3", credentials=credentials)
+        service = build_calendar_service(credentials)
 
         data = request.get_json(silent=True) or {}
 
@@ -554,7 +597,7 @@ def schedule_appointment():
                 "error": "Conflito ao reservar horário"
             }), 409
 
-        service = build("calendar", "v3", credentials=credentials)
+        service = build_calendar_service(credentials)
 
         event = {
             "summary": f"{service_name} - {data['name']}",
@@ -718,6 +761,42 @@ Poderia confirmar, por favor?"""
         }), 500
 
 
+@calendar_bp.route("/warmup", methods=["GET", "HEAD"])
+def warmup():
+    """
+    Aquece a aplicação, banco e integração com Google Calendar.
+    """
+
+    if request.method == "HEAD":
+        return "", 204
+
+    try:
+        credentials = get_credentials()
+
+        if not credentials:
+            return jsonify({
+                "status": "degraded",
+                "calendar": "not_connected"
+            }), 503
+
+        service = build_calendar_service(credentials)
+        service.calendars().get(calendarId="primary").execute()
+
+        return jsonify({
+            "status": "warm",
+            "calendar": "connected",
+            "timestamp": datetime.now(BRAZIL_TZ).isoformat()
+        })
+
+    except Exception as e:
+        log_error("WARMUP ERROR", e)
+
+        return jsonify({
+            "status": "degraded",
+            "calendar": "error"
+        }), 503
+
+
 @calendar_bp.route("/auth_status", methods=["GET"])
 def auth_status():
     """
@@ -734,7 +813,7 @@ def auth_status():
                 "message": "Google Calendar não conectado"
             })
 
-        service = build("calendar", "v3", credentials=credentials)
+        service = build_calendar_service(credentials)
 
         service.calendarList().list().execute()
 
@@ -839,7 +918,7 @@ def admin_test():
                 "error": "Não autenticado"
             }), 401
 
-        service = build("calendar", "v3", credentials=credentials)
+        service = build_calendar_service(credentials)
 
         calendar_list = service.calendarList().list().execute()
 
